@@ -1,12 +1,20 @@
 name: Deploy VERTICE
+
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
   deploy:
     environment:
@@ -14,10 +22,33 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate platform
+        run: |
+          test -f index.html
+          test -f imoveis.html
+          test -f imovel.html
+          test -f bairros.html
+          test -f favoritos.html
+          test -f comparar.html
+          test -f financiamento.html
+          test -f consultoria.html
+          test -f vertice-data.js
+          test -f vertice-app.js
+          test -f vertice-app.css
+          node --check vertice-data.js
+          node --check vertice-app.js
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload static site
+        uses: actions/upload-pages-artifact@v4
         with:
           path: .
-      - id: deployment
+
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
