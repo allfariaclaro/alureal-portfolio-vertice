@@ -24,3 +24,8 @@ document.querySelector('[data-search]')?.addEventListener('submit',event=>{
 document.querySelector('[data-interest]')?.addEventListener('click',()=>{
   document.querySelector('[data-status]').textContent='Demonstração: briefing comercial iniciado. Em produção, este fluxo seria integrado ao CRM.';
 });
+
+// portfolio-polish-2026-09-29
+document.querySelectorAll('.fav').forEach(button=>{button.setAttribute('aria-pressed',button.classList.contains('on')?'true':'false');button.addEventListener('click',()=>button.setAttribute('aria-pressed',button.classList.contains('on')?'true':'false'))});
+filters.forEach(button=>button.setAttribute('aria-pressed',button.classList.contains('active')?'true':'false'));
+filters.forEach(button=>button.addEventListener('click',()=>filters.forEach(item=>item.setAttribute('aria-pressed',item.classList.contains('active')?'true':'false'))));
