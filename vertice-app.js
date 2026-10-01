@@ -7,20 +7,36 @@ const favs=()=>read(FAV,[]),comp=()=>read(COMP,[]);
 // The URL is the single persistent source of listing criteria.
 const FILTER_KEYS=['bairro','tipo','precoMax','quartos','q'];
 function parsePrice(raw){
-  let value=String(raw||'').trim().toLowerCase().replace(/^até\s*/,'').replace(/^r\$\s*/,'').replace(/\s/g,'');
+  let value=String(raw??'').trim().toLowerCase().replace(/^até\s*/,'').replace(/^r\$\s*/,'').replace(/\s/g,'');
   if(!value)return '';
+  if(value.length>200)return null;
   const unit=value.match(/(mi|milhão|milhões|mil)$/);
   if(unit)value=value.slice(0,-unit[0].length);
-  if(/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(value))value=value.replace(/\./g,'').replace(',','.');
-  else if(/^\d+(,\d{1,2})?$/.test(value))value=value.replace(',','.');
-  else if(!(unit&&/^\d+(\.\d+)?$/.test(value)))return '';
-  const number=Number(value)*(unit?(unit[0]==='mil'?1000:1000000):1);
-  return Number.isSafeInteger(number)&&number>=0?String(number):'';
+  if(/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(value))value=value.replace(/\./g,'');
+  value=value.replace(',','.');
+  if(!/^\d+(\.\d+)?$/.test(value))return null;
+  const [whole,fraction='']=value.split('.');
+  const places=unit?(unit[0]==='mil'?5:8):2;
+  // Scale decimal digits exactly to cents, without floating-point multiplication.
+  if(fraction.length>places)return null;
+  const cents=BigInt(whole)*10n**BigInt(places)+BigInt((fraction+'0'.repeat(places)).slice(0,places));
+  if(cents>BigInt(Number.MAX_SAFE_INTEGER))return null;
+  const remainder=cents%100n;
+  return String(cents/100n)+(remainder?'.'+String(remainder).padStart(2,'0'):'');
+}
+function priceCriterion(raw){return parsePrice(raw)??String(raw).trim().slice(0,200)}
+function priceMatches(price,maximum){
+  const parsed=parsePrice(maximum);
+  if(parsed===null)return false;
+  if(parsed==='')return true;
+  const [whole,fraction='']=parsed.split('.');
+  const cents=BigInt(whole)*100n+BigInt((fraction+'00').slice(0,2));
+  return BigInt(Math.round(price*100))<=cents;
 }
 function filterState(query){
   const q=query instanceof URLSearchParams?query:new URLSearchParams(query);
   const allowed=(key,values)=>values.includes(q.get(key))?q.get(key):'';
-  return {bairro:allowed('bairro',[...new Set((D.properties||[]).map(p=>p.neighborhood))]),tipo:allowed('tipo',[...new Set((D.properties||[]).map(p=>p.type))]),precoMax:parsePrice(q.get('precoMax')),quartos:allowed('quartos',['2','3','4']),q:(q.get('q')||'').trim().slice(0,200)};
+  return {bairro:allowed('bairro',[...new Set((D.properties||[]).map(p=>p.neighborhood))]),tipo:allowed('tipo',[...new Set((D.properties||[]).map(p=>p.type))]),precoMax:priceCriterion(q.get('precoMax')??''),quartos:allowed('quartos',['2','3','4']),q:(q.get('q')||'').trim().slice(0,200)};
 }
 function filterQuery(state){const q=new URLSearchParams();FILTER_KEYS.forEach(k=>{if(state[k]!==''&&state[k]!=null)q.set(k,state[k])});return q.toString()}
 function listingUrl(state){const q=filterQuery(state);return 'imoveis.html'+(q?'?'+q:'')}
@@ -29,7 +45,7 @@ function safeListingReturn(value){
   return listingUrl(filterState(value.split('?')[1]||''));
 }
 const fold=value=>String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-function filteredProperties(state){return (D.properties||[]).filter(p=>(!state.bairro||p.neighborhood===state.bairro)&&(!state.tipo||p.type===state.tipo)&&(state.precoMax===''||p.price<=Number(state.precoMax))&&(!state.quartos||p.beds>=Number(state.quartos))&&(!state.q||fold([p.title,p.desc,p.neighborhood,p.type,...p.tags].join(' ')).includes(fold(state.q))))}
+function filteredProperties(state){return (D.properties||[]).filter(p=>(!state.bairro||p.neighborhood===state.bairro)&&(!state.tipo||p.type===state.tipo)&&priceMatches(p.price,state.precoMax)&&(!state.quartos||p.beds>=Number(state.quartos))&&(!state.q||fold([p.title,p.desc,p.neighborhood,p.type,...p.tags].join(' ')).includes(fold(state.q))))}
 function detailUrl(id){const q=new URLSearchParams({id});if($('[data-listing]'))q.set('retorno',listingUrl(filterState(location.search)));return 'imovel.html?'+q.toString()}
 function syncCardButtons(){
   $$('[data-fav]').forEach(b=>{const active=favs().includes(b.dataset.fav);b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));b.textContent=b.hasAttribute('data-fav-label')?(active?'♥ Salvo':'♡ Salvar'):(active?'♥':'♡')});
@@ -45,12 +61,14 @@ function bindCards(){
 }
 function updateCompareBar(){const b=$('[data-compare-bar]');if(!b)return;const c=comp();b.classList.toggle('show',c.length>0);$('[data-compare-count]').textContent=c.length}
 function renderNeighborhoods(){const g=$('[data-neighborhoods]');if(g)g.innerHTML=(D.neighborhoods||[]).map(n=>'<a class="neighborhood" href="imoveis.html?bairro='+encodeURIComponent(n.name)+'"><img src="'+n.image+'" alt="'+n.name+'"><div class="neighborhood-body"><h3>'+n.name+'</h3><p>'+n.desc+'</p><span class="neighborhood-score">Índice de conveniência '+n.score+'</span></div></a>').join('')}
-function initSearch(){const f=$('[data-search-form]');if(f)f.onsubmit=e=>{e.preventDefault();location.href=listingUrl(filterState(new URLSearchParams(new FormData(f))))}}
+function initSearch(){const f=$('[data-search-form]');if(!f)return;const price=f.elements.precoMax;price.oninput=()=>price.setCustomValidity(parsePrice(price.value)===null?'Informe um preço válido, até centavos, sem ultrapassar o limite numérico.':'');f.onsubmit=e=>{e.preventDefault();price.oninput();if(f.reportValidity())location.href=listingUrl(filterState(new URLSearchParams(new FormData(f))))}}
 function renderListing(syncInputs=true){
   const g=$('[data-listing]');if(!g)return;
   const state=filterState(location.search),list=filteredProperties(state);
   const form=$('[data-filter-form]');if(form&&syncInputs)FILTER_KEYS.forEach(k=>{form.elements[k].value=state[k]});
-  g.innerHTML=list.length?list.map(card).join(''):'<p role="status">Nenhum imóvel encontrado. Ajuste os filtros ou use “Limpar filtros”.</p>';
+  const invalidPrice=parsePrice(state.precoMax)===null;
+  if(form)form.elements.precoMax.setCustomValidity(invalidPrice?'Informe um preço válido, até centavos, sem ultrapassar o limite numérico.':'');
+  g.innerHTML=invalidPrice?'<p role="status">Preço máximo inválido. Corrija o valor ou limpe os filtros.</p>':list.length?list.map(card).join(''):'<p role="status">Nenhum imóvel encontrado. Ajuste os filtros ou use “Limpar filtros”.</p>';
   $('[data-result-count]').textContent=list.length+' imóveis encontrados';bindCards();
 }
 function initFilters(){

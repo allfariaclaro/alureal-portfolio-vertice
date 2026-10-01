@@ -15,3 +15,10 @@ Base: 47d9e5331827282bac388ca7eaafa10005973dd2. Branch: fix/listing-filter-state
 Limites: sandbox bloqueou sockets/Chromium; execução escalada autorizada resolveu. A porta 8765 estava ocupada; não alteramos o processo existente e usamos porta aleatória. O binário instalado era revisão 1243, enquanto Playwright esperava 1234; usado binário existente explicitamente, sem instalação. Produção não foi alterada ou validada com o novo código.
 
 CI: workflow PR separado, apenas contents: read; deploy-pages.yml intacto, sem gatilho PR.
+
+## Revisão decimal
+- Parser com BigInt/centavos: `4,1 mi` => `4100000`; `R$ 6.000.000,50` => `6000000.50`; sem multiplicação decimal em float.
+- Precisão até centavos; teto máximo 90071992547409.91 reais (MAX_SAFE_INTEGER centavos). NaN, infinito, negativos, overflow e fração abaixo de centavo rejeitados.
+- Teto inválido não vira vazio: permanece nos critérios, lista zero resultados e mensagem de erro. Home exige correção antes de navegar.
+- Seis testes Node passaram, incluindo comparação com diferença de um centavo, limite exato e roundtrip da URL.
+- Chromium desktop/mobile passou novamente com os novos casos 4,1 mi, moeda/centavos, reload e inválido. Fluxos favoritos, histórico/limpeza e comparação continuam passando. Verificação inclui erros console [VERTICE], além de pageerrors.
