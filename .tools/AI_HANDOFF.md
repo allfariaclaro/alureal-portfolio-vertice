@@ -16,3 +16,8 @@ ARQUIVOS: vertice-app.js, index.html, imoveis.html, imovel.html, tests, .github/
 TESTADO: 4 regressões Node; sintaxe/diff; Chromium desktop/mobile com todos os fluxos e temas (detalhes em FILTER_QA.md).
 PENDENTE: commit/push, PR draft, verificar CI. Nada publicado; deploy não modificado.
 PRÓXIMO PASSO: commit e criar PR draft; registrar HEAD/PR/checks.
+
+ENTREGA: PR draft https://github.com/allfariaclaro/alureal-portfolio-vertice/pull/1 criado e anexado à tarefa. Branch enviada; nenhuma operação de merge/deploy.
+CI: PR checks iniciado (run 36825906602), somente leitura. Resultado final será registrado no relatório local de entrega para evitar alterar o HEAD testado.
+PRÓXIMO PASSO: revisão do PR e autorização específica antes de publicação. Não iniciar outra frente neste repo enquanto houver escritor ativo.
+MODELO PARA PRÓXIMA ETAPA: manter Sol Medium para revisão; configuração efetiva/Fast não verificáveis nesta sessão.
